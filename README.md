@@ -24,7 +24,8 @@ Before using VEP, we need to:
   (but it needs to be the "merged" cache file which contains both RefSeq & Ensembl transcripts)
 - download reference genome fasta files from ftp://ftp.ensembl.org/pub/current_fasta.
 
-`docker run --rm -it -v [local VEP cache directory]:/cache -v [directory for other files as needed]:/data -v [directory for input VCF file]:/work ensemblorg/ensembl-vep /opt/vep/vep \
+```
+docker run --rm -it -v [local VEP cache directory]:/cache -v [directory for other files as needed]:/data -v [directory for input VCF file]:/work ensemblorg/ensembl-vep /opt/vep/vep \
 	--cache --offline --merged \
 	--species homo_sapiens \
 	--compress_output bgzip \
@@ -43,7 +44,8 @@ Before using VEP, we need to:
 	--transcript_version \
 	--canonical \
 	--vcf \
-	--flag_pick`
+	--flag_pick
+```
 
 For more detail, refer to Ensembl VEP documentation: https://ensembl.org/info/docs/tools/vep/script/vep_download.html#installer.
 
