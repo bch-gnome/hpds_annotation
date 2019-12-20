@@ -145,7 +145,6 @@ def parse_info(col):
     return(infoH, tagL)
 
 inFile = gzip.open(sys.argv[1], 'rb')
-#outFile = gzip.open('CHD495.recal.norm.vep.split.vcf.gz', 'wb')
 outFile = gzip.open(sys.argv[2], 'wb')
 for line in inFile:
     if line[:2] == '##':
