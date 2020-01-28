@@ -62,3 +62,7 @@ Thus, before running the python script:
 Finally, run the python script.
 
 `python transform_csq.v2.py [VEP annotated VCF path/filename] [new filename]`
+
+## New option: `--pick`
+
+If present, use only the most severe consequences from VEP annotation (flagged as 'PICK', by VEP option `--flag_pick`)
