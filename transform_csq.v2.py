@@ -2,6 +2,7 @@
 
 import os,sys
 import gzip
+from optparse import OptionParser
 
 csq_headerL='Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|STRAND|FLAGS|PICK|VARIANT_CLASS|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|TREMBL|UNIPARC|REFSEQ_MATCH|SOURCE|GIVEN_REF|USED_REF|BAM_EDIT|GENE_PHENO|SIFT|PolyPhen|DOMAINS|miRNA|HGVS_OFFSET|HGVSg|AF|AFR_AF|AMR_AF|EAS_AF|EUR_AF|SAS_AF|AA_AF|EA_AF|gnomAD_AF|gnomAD_AFR_AF|gnomAD_AMR_AF|gnomAD_ASJ_AF|gnomAD_EAS_AF|gnomAD_FIN_AF|gnomAD_NFE_AF|gnomAD_OTH_AF|gnomAD_SAS_AF|MAX_AF|MAX_AF_POPS|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|DownstreamProtein|ProteinLengthChange|TSSDistance|CSN|SpliceRegion|FATHMM_pred|FATHMM_score|MutationAssessor_pred|MutationAssessor_score|MutationTaster_pred|MutationTaster_score|PROVEAN_pred|PROVEAN_score|REVEL_score|ada_score|rf_score|CADD_PHRED|CADD_RAW|Condel|LoFtool|ExACpLI|HGMD|HGMD_CLASS|HGMD_MUT|HGMD_PHEN|HGMD_RANKSCORE|GNOMAD_G|GNOMAD_G_AF_AFR|GNOMAD_G_AF_AMR|GNOMAD_G_AF_ASJ|GNOMAD_G_AF_EAS|GNOMAD_G_AF_FIN|GNOMAD_G_AF_NFE|GNOMAD_G_AF_OTH|phastCons100|phyloP100|RMSK|GERP|COV_GNOMAD_E|COV_GNOMAD_G'.split('|')
 
@@ -144,8 +145,20 @@ def parse_info(col):
     #for item
     return(infoH, tagL)
 
-inFile = gzip.open(sys.argv[1], 'rb')
-outFile = gzip.open(sys.argv[2], 'wb')
+usage = "usage: %prog [options] inFile outFile"
+parser = OptionParser(usage)
+parser.add_option("--pick", action="store_true", dest="pick_only", help="Use the most severe consequence only (marked by VEP)")
+
+(options, args) = parser.parse_args()
+if len(args) < 2:
+    parser.error("Need input & output file names")
+    sys.exit(1)
+pick_only = False
+if options.pick_only:
+    pick_only = True
+
+inFile = gzip.open(args[0], 'rb')
+outFile = gzip.open(args[1], 'wb')
 for line in inFile:
     if line[:2] == '##':
         if 'INFO=<ID=' in line:
@@ -165,10 +178,15 @@ for line in inFile:
     else:
         colL=line.strip().split('\t')
         (infoH, tagL)=parse_info(colL[7])
+        if 'CSQ' not in infoH:
+            continue
+
         tagL.pop()
         csqL = infoH['CSQ'].split(',')
         for csq in csqL:
             csq_valL = csq.split('|')
+            if pick_only and csq_valL[ csq_headerL.index('PICK') ] == '':
+                continue
             outFile.write('\t'.join(colL[:7]))
             outFile.write('\t')
             for h in out_columnH:
