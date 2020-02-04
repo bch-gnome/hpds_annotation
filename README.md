@@ -63,7 +63,7 @@ The script can detect VEP annotation format from the header line in the VCF file
 
 ~~Finally, run the python script.~~
 
-`python transform_csq.v2.py [VEP annotated VCF path/filename] [new filename]`
+`python transform_csq.v2.py [options] [VEP annotated VCF path/filename] [new filename]`
 
 ## New option: `--pick`
 
