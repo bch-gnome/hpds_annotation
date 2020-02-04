@@ -55,14 +55,21 @@ For more detail, refer to Ensembl VEP documentation: https://ensembl.org/info/do
 The python script "transform_csq.v2.py" removes complex and bulky VEP annotation from VCF file and leaves only the following informations, reformatted for loading into HPDS.
 
 The VEP annotation field in VCF can vary by exact options used in VEP annotation.
-Thus, before running the python script:
-1) Open the annotated VCF file to find the line begins with "##INFO=<ID=CSQ" and copy the string between "Format: " and "">".
-2) Then open the python script and edit the line begins with 'csq_headerL' into `csq_headerL = '[string copied from annotated VCF file]'.split('|')`
+The script can detect VEP annotation format from the header line in the VCF file, if it follows the style "##INFO=<ID=CSQ... Format: ...>."
 
-Finally, run the python script.
+~~Thus, before running the python script:~~
+~~1) Open the annotated VCF file to find the line begins with "##INFO=<ID=CSQ" and copy the string between "Format: " and "">".~~
+~~2) Then open the python script and edit the line begins with 'csq_headerL' into `csq_headerL = '[string copied from annotated VCF file]'.split('|')`~~
+
+~~Finally, run the python script.~~
 
 `python transform_csq.v2.py [VEP annotated VCF path/filename] [new filename]`
 
 ## New option: `--pick`
 
 If present, use only the most severe consequences from VEP annotation (flagged as 'PICK', by VEP option `--flag_pick`)
+
+## New option: `--cds`
+
+If present, use only the variants in coding sequence (CDS). 
+Specifically, this option will keep only variants whose rate of variant impact by VEP (https://ensembl.org/info/genome/variation/prediction/predicted_data.html) is not "MODIFIER."
