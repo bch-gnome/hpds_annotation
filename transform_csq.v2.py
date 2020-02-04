@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os,sys
+import os,sys,re
 import gzip
 from optparse import OptionParser
 
@@ -147,7 +147,8 @@ def parse_info(col):
 
 usage = "usage: %prog [options] inFile outFile"
 parser = OptionParser(usage)
-parser.add_option("--pick", action="store_true", dest="pick_only", help="Use the most severe consequence only (marked by VEP)")
+parser.add_option("--pick", action="store_true", dest="pick_only", help="Pick the most severe consequence only (marked by VEP)")
+parser.add_option("--cds", action="store_true", dest="cds_only", help="Keep variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'")
 
 (options, args) = parser.parse_args()
 if len(args) < 2:
@@ -156,11 +157,17 @@ if len(args) < 2:
 pick_only = False
 if options.pick_only:
     pick_only = True
+cds_only = False
+if options.cds_only:
+    cds_only = True
 
 inFile = gzip.open(args[0], 'rb')
 outFile = gzip.open(args[1], 'wb')
 for line in inFile:
     if line[:2] == '##':
+        if 'INFO=<ID=CSQ' in line:
+            csq_header = re.match('##.*Format: (.*)">',line).groups()[0]
+            csq_headerL = csq_header.split('|')
         if 'INFO=<ID=' in line:
             continue
         else:
@@ -183,12 +190,14 @@ for line in inFile:
 
         tagL.pop()
         csqL = infoH['CSQ'].split(',')
+        annotL = []
         for csq in csqL:
             csq_valL = csq.split('|')
+            if cds_only and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER':
+                continue
             if pick_only and csq_valL[ csq_headerL.index('PICK') ] == '':
                 continue
-            outFile.write('\t'.join(colL[:7]))
-            outFile.write('\t')
+            outText = ''
             for h in out_columnH:
                 csq_val = csq_valL[ csq_headerL.index(h) ]
                 if h == 'Consequence':
@@ -196,16 +205,20 @@ for line in inFile:
                 if h == 'gnomAD_AF' and (csq_val == '.' or csq_val == ''):
                     csq_val = -10
                 if csq_val != '' and csq_val != '.':
-                    outFile.write("%s=%s;" % (out_columnH[h]['Name'], csq_val))
+                    outText += "%s=%s;" % (out_columnH[h]['Name'], csq_val)
                 if h == 'gnomAD_AF':
                     if float(csq_val) < 0:
-                        outFile.write("Variant_frequency_as_text=Novel;")
+                        outText += "Variant_frequency_as_text=Novel;"
                     elif float(csq_val) < 0.01:
-                        outFile.write("Variant_frequency_as_text=Rare;")
+                        outText += "Variant_frequency_as_text=Rare;"
                     else:
-                        outFile.write("Variant_frequency_as_text=Common;")
-            outFile.write("\t%s\n" % '\t'.join(colL[8:]))
+                        outText += "Variant_frequency_as_text=Common;"
+            annotL.append(outText)
         #for csq
+        for annot in set(annotL):
+            outFile.write('\t'.join(colL[:7]))
+            outFile.write('\t%s' % annot) 
+            outFile.write('\t%s\n' % '\t'.join(colL[8:]))
     #else
 #for line
 outFile.flush()
