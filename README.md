@@ -1,3 +1,5 @@
+![](https://github.com/bch-gnome/hpds_annotation/workflows/.github/workflows/dockerimage.yml/badge.svg)
+
 This repository describes steps to prepare and annotate VCF files for loading into HPDS as in https://github.com/hms-dbmi/pic-sure-hpds-copdgene.
 
 # Preparing VCF
