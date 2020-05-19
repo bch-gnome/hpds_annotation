@@ -14,5 +14,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Login to DockerHub Registry
+      run: echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag hpds_annotation:$(date +%s)
+      run: docker build . --file Dockerfile --tag ikarus97/hpds_annotation:$(date +%s)
+    - name: Push the Docker image
+      run: docker push ikarus97/hpds_annotation:$(date +%s)
+    - name: Build the latest Docker image
+      run: docker build . --file Dockerfile --tag ikarus97/hpds_annotation:latest
