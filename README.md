@@ -69,16 +69,18 @@ docker run --rm -it -v [directory for input VCF file]:/work ikarus97/hpds_annota
 ```
 
 Docker image for the main script `transform_csq.v2.py` is available from [Docker Hub](https://hub.docker.com/r/ikarus97/hpds_annotation).
+
 Image with the tag `latest` contains the most up-to-date version.
+
 Previous versions are archived with the creation dates  as tags.
 
 ## Options
 
-###: `--pick`
+`--pick`
 
 If present, use only the most severe consequences from VEP annotation (flagged as 'PICK', by VEP option `--flag_pick`)
 
-###: `--cds`
+`--cds`
 
 If present, use only the variants in coding sequence (CDS). 
 Specifically, this option will keep only variants whose rate of variant impact by VEP (https://ensembl.org/info/genome/variation/prediction/predicted_data.html) is not "MODIFIER."
