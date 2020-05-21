@@ -11,7 +11,7 @@ out_columnH = {
     'IMPACT': {'Name': 'Variant_severity', 'Number': 1, 'Type': 'String', 'Description': "The severity for the calculated consequence of a variant on a gene. Possible values: HIGH (frameshift, splice disrupting, or truncating variants), MODERATE (non-frameshift insertions or deletions, variants altering protein sequencing without affecting its length), LOW (other coding sequence variants including synonymous variants), MODIFIER (all others)."},
     'Consequence': {'Name': 'Variant_consequence_calculated', 'Number': 1, 'Type': 'String', 'Description': "A standardized term from the Sequence Ontology (http://www.sequenceontology.org) to describe the calculated consequence of a variant."},
     'VARIANT_CLASS': {'Name': 'Variant_class', 'Number': 1, 'Type': 'String', 'Description': "A standardized term from the Sequence Ontology (http://www.sequenceontology.org) to describe the type of a variant. Possible values: SNV, deletion, insertion."},
-    'gnomAD_AF': {'Name': 'Variant_frequency_in_gnomAD', 'Number': 1, 'Type': 'Float', 'Description': "The variant allele frequency in gnomAD exomes of combined population."}
+    'gnomAD_AF': {'Name': 'Variant_frequency_in_gnomAD', 'Number': 1, 'Type': 'Float', 'Description': "The variant allele frequency in gnomAD combined population."}
 }
 
 csq_infoH = {
@@ -149,6 +149,7 @@ usage = "usage: %prog [options] inFile outFile"
 parser = OptionParser(usage)
 parser.add_option("--pick", action="store_true", dest="pick_only", help="Pick the most severe consequence only (marked by VEP)")
 parser.add_option("--cds", action="store_true", dest="cds_only", help="Keep variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'")
+parser.add_option("--vep-gnomad-af", action="store", type="string", dest="vep_gnomad_af", help="VEP field name to be used as 'Variant_frequency_in_gnomAD'")
 
 (options, args) = parser.parse_args()
 if len(args) < 2:
@@ -160,6 +161,11 @@ if options.pick_only:
 cds_only = False
 if options.cds_only:
     cds_only = True
+GNOMAD_AF_FIELD='gnomAD_AF'
+if options.vep_gnomad_af:
+    out_columnH[ options.vep_gnomad_af ] = out_columnH[ 'gnomAD_AF' ]
+    out_columnH.pop('gnomAD_AF', None)
+    GNOMAD_AF_FIELD = options.vep_gnomad_af
 
 inFile = gzip.open(args[0], 'rb')
 outFile = gzip.open(args[1], 'wb')
@@ -180,7 +186,7 @@ for line in inFile:
             outFile.write("##INFO=<ID=%s,Number=%s,Type=%s,Description=\"%s\">\n" % (out_columnH[h]['Name'], out_columnH[h]['Number'], out_columnH[h]['Type'], out_columnH[h]['Description']))
         #for h
         ## additional field
-        outFile.write("##INFO=<ID=Variant_frequency_as_text,Number=1,Type=String,Description=\"The variant allele frequency in gnomAD exomes of combined population as discrete text categories. Possible values: Novel, Rare (variant frequency less than 1%), Common (variant frequency greater than or equal to 1%).\">\n")
+        outFile.write("##INFO=<ID=Variant_frequency_as_text,Number=1,Type=String,Description=\"The variant allele frequency in gnomAD combined population as discrete text categories. Possible values: Novel, Rare (variant frequency less than 1%), Common (variant frequency greater than or equal to 1%).\">\n")
         outFile.write(line)
     else:
         colL=line.strip().split('\t')
@@ -202,11 +208,11 @@ for line in inFile:
                 csq_val = csq_valL[ csq_headerL.index(h) ]
                 if h == 'Consequence':
                     csq_val = csq_val.split('&')[0]
-                if h == 'gnomAD_AF' and (csq_val == '.' or csq_val == ''):
+                if h == GNOMAD_AF_FIELD and (csq_val == '.' or csq_val == ''):
                     csq_val = -10
                 if csq_val != '' and csq_val != '.':
                     outText += "%s=%s;" % (out_columnH[h]['Name'], csq_val)
-                if h == 'gnomAD_AF':
+                if h == GNOMAD_AF_FIELD:
                     if float(csq_val) < 0:
                         outText += "Variant_frequency_as_text=Novel;"
                     elif float(csq_val) < 0.01:

@@ -59,19 +59,36 @@ The python script "transform_csq.v2.py" removes complex and bulky VEP annotation
 The VEP annotation field in VCF can vary by exact options used in VEP annotation.
 The script can detect VEP annotation format from the header line in the VCF file, if it follows the style "##INFO=<ID=CSQ... Format: ...>."
 
-~~Thus, before running the python script:~~
-~~1) Open the annotated VCF file to find the line begins with "##INFO=<ID=CSQ" and copy the string between "Format: " and "">".~~
-~~2) Then open the python script and edit the line begins with 'csq_headerL' into `csq_headerL = '[string copied from annotated VCF file]'.split('|')`~~
-
-~~Finally, run the python script.~~
-
 `python transform_csq.v2.py [options] [VEP annotated VCF path/filename] [new filename]`
 
-## New option: `--pick`
+or use docker image.
+
+```
+docker run --rm -it -v [directory for input VCF file]:/work ikarus97/hpds_annotation:latest \
+	python /transform_csq.v2.py [options] /work/[input VCF path/filename] /work/[output VCF path/filename]
+```
+
+Docker image for the main script `transform_csq.v2.py` is available from [Docker Hub](https://hub.docker.com/r/ikarus97/hpds_annotation).
+Image with the tag `latest` contains the most up-to-date version.
+Previous versions are archived with the creation dates  as tags.
+
+## Options
+
+###: `--pick`
 
 If present, use only the most severe consequences from VEP annotation (flagged as 'PICK', by VEP option `--flag_pick`)
 
-## New option: `--cds`
+###: `--cds`
 
 If present, use only the variants in coding sequence (CDS). 
 Specifically, this option will keep only variants whose rate of variant impact by VEP (https://ensembl.org/info/genome/variation/prediction/predicted_data.html) is not "MODIFIER."
+
+### New option: `--vep-gnomad-af <string>`
+
+Specify which field in VEP annotation will be extracted for gnomAD allele frequency. Use this if custom file (e.g., gnomAD genomes file) is used for gnomAD allele frequency.
+Default value: `gnomAD_AF`
+
+For example, if you want to use gnomAD genome allele frequency from the following VEP argument:
+`--custom /path/to/custom/file.vcf.gz,CUSTOM_TAG,vcf,exact,0,My_Field`
+
+then, add `--vep-gnomad-af CUSTOM_TAG_My_Field` to options to use the value of "My_Field" as gnomAD allele frequency.
