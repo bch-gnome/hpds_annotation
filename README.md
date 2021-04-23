@@ -85,7 +85,7 @@ If present, use only the most severe consequences from VEP annotation (flagged a
 If present, use only the variants in coding sequence (CDS). 
 Specifically, this option will keep only variants whose rate of variant impact by VEP (https://ensembl.org/info/genome/variation/prediction/predicted_data.html) is not "MODIFIER."
 
-### New option: `--vep-gnomad-af <string>`
+`--vep-gnomad-af <string>`
 
 Specify which field in VEP annotation will be extracted for gnomAD allele frequency. Use this if custom file (e.g., gnomAD genomes file) is used for gnomAD allele frequency.
 Default value: `gnomAD_AF`
@@ -94,3 +94,18 @@ For example, if you want to use gnomAD genome allele frequency from the followin
 `--custom /path/to/custom/file.vcf.gz,CUSTOM_TAG,vcf,exact,0,My_Field`
 
 then, add `--vep-gnomad-af CUSTOM_TAG_My_Field` to options to use the value of "My_Field" as gnomAD allele frequency.
+
+`--allow-modifier`
+
+If present, output "Variant_severity" for variants that are "MODIFIER". As of 2021-04-23, by default, such variants do not have "Variant_severity" in the INFO column to reduce overhead in HPDS.
+
+# Change Log
+
+## 2021-04-23
+
+### Added
+- Added option `--allow-modifier` to output tags for "MODIFIER" variants.
+
+### Changed
+- Changed the default behavior for "Variant_severity" tag: not to output the tag if the value is "MODIFIER".
+- Modified header line for VCF to meet VCF specification.

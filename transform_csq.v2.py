@@ -7,8 +7,8 @@ from optparse import OptionParser
 csq_headerL='Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|ALLELE_NUM|DISTANCE|STRAND|FLAGS|PICK|VARIANT_CLASS|SYMBOL_SOURCE|HGNC_ID|CANONICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|TREMBL|UNIPARC|REFSEQ_MATCH|SOURCE|GIVEN_REF|USED_REF|BAM_EDIT|GENE_PHENO|SIFT|PolyPhen|DOMAINS|miRNA|HGVS_OFFSET|HGVSg|AF|AFR_AF|AMR_AF|EAS_AF|EUR_AF|SAS_AF|AA_AF|EA_AF|gnomAD_AF|gnomAD_AFR_AF|gnomAD_AMR_AF|gnomAD_ASJ_AF|gnomAD_EAS_AF|gnomAD_FIN_AF|gnomAD_NFE_AF|gnomAD_OTH_AF|gnomAD_SAS_AF|MAX_AF|MAX_AF_POPS|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|DownstreamProtein|ProteinLengthChange|TSSDistance|CSN|SpliceRegion|FATHMM_pred|FATHMM_score|MutationAssessor_pred|MutationAssessor_score|MutationTaster_pred|MutationTaster_score|PROVEAN_pred|PROVEAN_score|REVEL_score|ada_score|rf_score|CADD_PHRED|CADD_RAW|Condel|LoFtool|ExACpLI|HGMD|HGMD_CLASS|HGMD_MUT|HGMD_PHEN|HGMD_RANKSCORE|GNOMAD_G|GNOMAD_G_AF_AFR|GNOMAD_G_AF_AMR|GNOMAD_G_AF_ASJ|GNOMAD_G_AF_EAS|GNOMAD_G_AF_FIN|GNOMAD_G_AF_NFE|GNOMAD_G_AF_OTH|phastCons100|phyloP100|RMSK|GERP|COV_GNOMAD_E|COV_GNOMAD_G'.split('|')
 
 out_columnH = {
-    'SYMBOL': {'Name': 'Gene_with_variant', 'Number': 1, 'Type': 'String', 'Description': "The official symbol for a gene affected by a variant."},
-    'IMPACT': {'Name': 'Variant_severity', 'Number': 1, 'Type': 'String', 'Description': "The severity for the calculated consequence of a variant on a gene. Possible values: HIGH (frameshift, splice disrupting, or truncating variants), MODERATE (non-frameshift insertions or deletions, variants altering protein sequencing without affecting its length), LOW (other coding sequence variants including synonymous variants), MODIFIER (all others)."},
+    'SYMBOL': {'Name': 'Gene_with_variant', 'Number': '.', 'Type': 'String', 'Description': "The official symbol for a gene affected by a variant."},
+    'IMPACT': {'Name': 'Variant_severity', 'Number': '.', 'Type': 'String', 'Description': "The severity for the calculated consequence of a variant on a gene. Possible values: HIGH (frameshift, splice disrupting, or truncating variants), MODERATE (non-frameshift insertions or deletions, variants altering protein sequencing without affecting its length), LOW (other coding sequence variants including synonymous variants)."},
     'Consequence': {'Name': 'Variant_consequence_calculated', 'Number': 1, 'Type': 'String', 'Description': "A standardized term from the Sequence Ontology (http://www.sequenceontology.org) to describe the calculated consequence of a variant."},
     'VARIANT_CLASS': {'Name': 'Variant_class', 'Number': 1, 'Type': 'String', 'Description': "A standardized term from the Sequence Ontology (http://www.sequenceontology.org) to describe the type of a variant. Possible values: SNV, deletion, insertion."},
     'gnomAD_AF': {'Name': 'Variant_frequency_in_gnomAD', 'Number': 1, 'Type': 'Float', 'Description': "The variant allele frequency in gnomAD combined population."}
@@ -150,6 +150,7 @@ parser = OptionParser(usage)
 parser.add_option("--pick", action="store_true", dest="pick_only", help="Pick the most severe consequence only (marked by VEP)")
 parser.add_option("--cds", action="store_true", dest="cds_only", help="Keep variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'")
 parser.add_option("--vep-gnomad-af", action="store", type="string", dest="vep_gnomad_af", help="VEP field name to be used as 'Variant_frequency_in_gnomAD'")
+parser.add_option("--allow-modifier", action="store_true", dest="allow_modifier", help="Include 'MODIFIER' for variant impact")
 
 (options, args) = parser.parse_args()
 if len(args) < 2:
@@ -166,6 +167,9 @@ if options.vep_gnomad_af:
     out_columnH[ options.vep_gnomad_af ] = out_columnH[ 'gnomAD_AF' ]
     out_columnH.pop('gnomAD_AF', None)
     GNOMAD_AF_FIELD = options.vep_gnomad_af
+allow_modifier = False
+if options.allow_modifier:
+    allow_modifier = True
 
 inFile = gzip.open(args[0], 'rb')
 outFile = gzip.open(args[1], 'wb')
@@ -211,6 +215,8 @@ for line in inFile:
                 if h == GNOMAD_AF_FIELD and (csq_val == '.' or csq_val == ''):
                     csq_val = -10
                 if csq_val != '' and csq_val != '.':
+                    if h == 'IMPACT' and csq_val == 'MODIFIER' and not allow_modifier:
+                        continue
                     outText += "%s=%s;" % (out_columnH[h]['Name'], csq_val)
                 if h == GNOMAD_AF_FIELD:
                     if float(csq_val) < 0:
