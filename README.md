@@ -101,6 +101,11 @@ If present, output "Variant_severity" for variants that are "MODIFIER". As of 20
 
 # Change Log
 
+## 2021-06-21
+
+### Added
+- Added a routine to check if the input VEP annotation includes all the required fields. If found any missing fields, the script will show error message on the missing field name and exit.
+
 ## 2021-04-23
 
 ### Added

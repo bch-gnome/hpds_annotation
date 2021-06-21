@@ -178,6 +178,11 @@ for line in inFile:
         if 'INFO=<ID=CSQ' in line:
             csq_header = re.match('##.*Format: (.*)">',line).groups()[0]
             csq_headerL = csq_header.split('|')
+            ## check required VEP field
+            for fld in out_columnH:
+                if fld not in csq_headerL:
+                    parser.error("Missing required VEP field: %s" % fld)
+                    sys.exit(1)
         if 'INFO=<ID=' in line:
             continue
         else:
