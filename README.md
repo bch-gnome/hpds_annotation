@@ -18,7 +18,7 @@ Also make the normalized VCF file tabix-indexed to accelerate the next step: ann
 (tabix is part of htslib. http://www.htslib.org/download/)
 
 
-## 2. Annotating VCF using VEP ([variant effect predictor](https://www.ensembl.org/vep))
+## 2. Annotating VCF using [VEP](https://www.ensembl.org/vep) (variant effect predictor)
 
 For annotating VCF with VEP, we need:
 - VEP docker image (ensemblorg/ensembl-vep) or local installation
@@ -29,7 +29,9 @@ For annotating VCF with VEP, we need:
 Recommended VEP command:
 
 ```
-docker run --rm -it -v [local VEP cache directory]:/cache -v [local gnomAD directory]:/gnomAD -v [directory for input VCF file]:/work ensemblorg/ensembl-vep /opt/vep/vep \
+docker run --rm -it -v [local VEP cache directory]:/cache \
+	-v [local gnomAD directory]:/gnomAD \
+	-v [directory for input VCF file]:/work ensemblorg/ensembl-vep /opt/vep/vep \
 	--cache --offline --merged \
 	--species homo_sapiens \
 	--compress_output bgzip \
