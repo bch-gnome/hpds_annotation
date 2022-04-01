@@ -18,11 +18,11 @@ Also make the normalized VCF file tabix-indexed to accelerate the next step: ann
 (tabix is part of htslib. http://www.htslib.org/download/)
 
 
-## 2. Annotating VCF using VEP (variant effect predictor: https://www.ensembl.org/vep)
+## 2. Annotating VCF using VEP ([variant effect predictor](https://www.ensembl.org/vep))
 
 For annotating VCF with VEP, we need:
 - VEP docker image (ensemblorg/ensembl-vep) or local installation
-- VEP cache files from Ensembl [FTP](ftp://ftp.ensembl.org/pub/current_variation/indexed_vep_cache): **release 102 or later, GRCh38, merged for RefSeq and Ensembl.** ("hommo_sapiens_merged_vep_NNN_GRCh38.tar.gz")
+- VEP cache files from Ensembl [FTP](ftp://ftp.ensembl.org/pub/current_variation/indexed_vep_cache): **release 102 or later, GRCh38, merged for RefSeq and Ensembl.** ("homo_sapiens_merged_vep_NNN_GRCh38.tar.gz")
 - GRCh38 reference fasta file from Ensembl [FTP](ftp://ftp.ensembl.org/pub/current_fasta/homo_sapiens/dna_index).
 - gnomAD genomes release v3 ([link](https://gnomad.broadinstitute.org/downloads#v3-variants)). Variant files are split by chromosome, needs to be merged into single file (e.g., `bcftools concat`).
 
@@ -72,13 +72,13 @@ The python script "transform_csq.v2.py" removes complex and bulky VEP annotation
 The VEP annotation field in VCF can vary by exact options used in VEP annotation.
 The script can detect VEP annotation format from the header line in the VCF file, if it follows the style "##INFO=<ID=CSQ... Format: ...>."
 
-`python transform_csq.v2.py [options] [VEP annotated VCF path/filename] [new filename]`
+`python transform_csq.v2.py [options] [VEP annotated VCF path/filename] [new filename] --vep-gnomad-af GNOMAD_G_AF`
 
 or use docker image.
 
 ```
 docker run --rm -it -v [directory for input VCF file]:/work ikarus97/hpds_annotation:latest \
-	python /transform_csq.v2.py [options] /work/[input VCF path/filename] /work/[output VCF path/filename]
+	python /transform_csq.v2.py [options] /work/[input VCF path/filename] /work/[output VCF path/filename] --vep-gnomad-af GNOMAD_G_AF
 ```
 
 If gnomAD genomes were used with different name from `GNOMAD_G` (case sensitive), then you need to provide the correct field name with opton `--vep-gnomad-af`.
