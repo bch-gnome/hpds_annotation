@@ -17,6 +17,18 @@ Also make the normalized VCF file tabix-indexed to accelerate the next step: ann
 
 (tabix is part of htslib. http://www.htslib.org/download/)
 
+Note on variant normalization with bcftools:
+
+Bcftools 1.16 had an issue where some FORMAT fields are not handled properly - leaving empty for the field -  when it's missing for some of samples (no problem when all samples have values or none has value).
+The empty field will later be translated as '0' by the post-processing script (the basic behavior of *pysam* library).
+The issue is fixed in the latest github repository. So, to avoid unnecessary confusion, it is recommended to use bcftools built from source.
+You can check if your VCF file suffers from this issue by comparing input (after step 1,2) and output (after step 3) for post-processing. For example, after step 3,
+
+`zcat [input] | grep -v '^#' | cut -f 10- | md5sum`
+
+`zcat [output] | grep -v '^#' | cut -f 10- | md5sum`
+
+If the two checkums are different, there are FORMAT fields affected by bcftools' issue whose value was set as '0' during post-processing.
 
 ## 2. Annotating VCF using [VEP](https://www.ensembl.org/vep) (variant effect predictor)
 
@@ -60,7 +72,7 @@ For more detail, refer to Ensembl VEP documentation: https://ensembl.org/info/do
 
 ## 3. Post-processing annotated VEP for loading into HPDS
 
-The python script "transform_csq.v2.py" removes complex and bulky VEP annotation from VCF file and leaves only the following informations, reformatted for loading into HPDS.
+The python script "transform_csq.v3.py" removes complex and bulky VEP annotation from VCF file and leaves only the following informations, reformatted for loading into HPDS.
 
 | VEP field | Output tag | Values |
 | --------- | ---------- | ------ |
@@ -72,27 +84,46 @@ The python script "transform_csq.v2.py" removes complex and bulky VEP annotation
 | GNOMAD_G_AF | Variant_frequency_as_text | Discretized variant allele frequency from gnomAD genomes. Possble values: `Novel`, `Rare` (less than 1%), `Common` (1% or greater) |
 
 The VEP annotation field in VCF can vary by exact options used in VEP annotation.
-The script can detect VEP annotation format from the header line in the VCF file, if it follows the style "##INFO=<ID=CSQ... Format: ...>."
+The script automatically detect VEP annotation format from the header line in the VCF file, if it follows the standard format: "##INFO=<ID=CSQ... Format: ...>."
 
-`python transform_csq.v2.py [options] [VEP annotated VCF path/filename] [new filename] --vep-gnomad-af GNOMAD_G_AF`
+The script also performs a few simple checks to ensure the given VCF is compatible with GRCh38.
+
+1. It checks if the provided FASTA file is compatible with GRCh38: follows the same chromosome name style (chr1, chr2, ...), have the same length, and have the same md5 checksum value for sequences.
+
+It only checks for autosomes (chr1 ~ chr22) and sex chromosomes (chrX and chrY).
+
+2. It checks if the chromosome names in VCF file follows the same style as GRCh38.
+
+3. It checks if the input VCF and FASTA files are compatible with each other.
+
+For this, it tests if the reference sequences in FASTA and VCF match with each other for 100 random positions.
+
+
+`python3 transform_csq.v3.py -R [reference FASTA path/filename] [options] [VEP annotated VCF path/filename] [new filename] --vep-gnomad-af GNOMAD_G_AF`
 
 or use docker image.
 
 ```
-docker run --rm -it -v [directory for input VCF file]:/work ikarus97/hpds_annotation:latest \
-	python /transform_csq.v2.py [options] /work/[input VCF path/filename] /work/[output VCF path/filename] --vep-gnomad-af GNOMAD_G_AF
+docker run --rm -it -v [directory for input VCF file]:/work -v [directory for reference FASTA file]:/ref  ikarus97/hpds_annotation:latest \
+	python3 /transform_csq.v3.py -R /ref/[reference FASTA path/filename] [options] /work/[input VCF path/filename] /work/[output VCF path/filename] --vep-gnomad-af GNOMAD_G_AF
 ```
+
+The volume option for `/ref` can be omitted if the reference FASTA file is in the same directory as input VCF or in sub-directories. The path in `-R` option should be modified appropriately.
 
 If gnomAD genomes were used with different name from `GNOMAD_G` (case sensitive), then you need to provide the correct field name with opton `--vep-gnomad-af`.
 For example, if VEP was run with `--custom /[gnomad file],GG,vcf,exact,0,AF`, then the correct field name for gnomAD allele frequencies would be `GG_AF`, thus we'll need `--vep-gnomad-af GG_AF`.
 
-Docker image for the main script `transform_csq.v2.py` is available from [Docker Hub](https://hub.docker.com/r/ikarus97/hpds_annotation).
+Docker image for the main script `transform_csq.v3.py` is available from [Docker Hub](https://hub.docker.com/r/ikarus97/hpds_annotation).
 
 Image with the tag `latest` contains the most up-to-date version.
 
-Previous versions are archived with the creation dates  as tags.
+Previous versions are archived with the creation dates as tags.
 
 ### Options
+
+`-R <path to FASTA file>`
+
+*Required*. The path to the GRCh38 reference FASTA file. The accompanying index file (.fai) should be in the same place.
 
 `--pick`
 
@@ -109,6 +140,7 @@ Specify which field in VEP annotation will be extracted for gnomAD allele freque
 Default value: `gnomAD_AF`
 
 For example, if you want to use gnomAD genome allele frequency from the following VEP argument:
+
 `--custom /path/to/custom/file.vcf.gz,CUSTOM_TAG,vcf,exact,0,My_Field`
 
 then, add `--vep-gnomad-af CUSTOM_TAG_My_Field` to options to use the value of "My_Field" as gnomAD allele frequency.
@@ -118,6 +150,22 @@ then, add `--vep-gnomad-af CUSTOM_TAG_My_Field` to options to use the value of "
 If present, output "Variant_severity" for variants that are "MODIFIER". As of 2021-04-23, by default, such variants do not have "Variant_severity" in the INFO column to reduce overhead in HPDS.
 
 # Change Log
+
+## 2022-12-06
+Summary: major re-writing of code using python3 and pysam library. Also added a few basic check-up routines to ensure the compatibility with GRCh38.
+
+### Added
+- Added a *required* option (`-R`) to specify the path to GRCh38 reference FASTA file. It also requires the index file (.fai) in the same place as FASTA.
+- Added routines to check the following:
+	- if the chromosome names and sequences in the FASTA file is compatible with GRCh38.
+	- if the chromosome names in the input VCF is compatible with GRCh38.
+	- if the coordinates in the input VCF is compatible with the FASTA.
+
+### Changed
+- Code is written with python3 and pysam library. The old python2 scrypt (transform_csq.v2.py) is moved under "legacy_script/".
+- The name of main script is changed to "transform_csq*v3*.py".
+- Now the script requires tabix-index for input VCF (.tbi) in the same place as VCF.
+- The script prints more descriptive error or information messages during the process.
 
 ## 2022-04-01
 - Updated readme description to add more details and recommended steps.

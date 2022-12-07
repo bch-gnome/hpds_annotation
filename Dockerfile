@@ -1,5 +1,7 @@
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y bcftools python-minimal
+RUN apt-get update && apt-get install -y bcftools python3-minimal python3-pip
 
-COPY transform_csq.v2.py /
+RUN pip install pysam
+
+COPY transform_csq.v3.py /
