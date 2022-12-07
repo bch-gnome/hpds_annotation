@@ -89,13 +89,11 @@ The script automatically detect VEP annotation format from the header line in th
 The script also performs a few simple checks to ensure the given VCF is compatible with GRCh38.
 
 1. It checks if the provided FASTA file is compatible with GRCh38: follows the same chromosome name style (chr1, chr2, ...), have the same length, and have the same md5 checksum value for sequences.
-
 It only checks for autosomes (chr1 ~ chr22) and sex chromosomes (chrX and chrY).
 
 2. It checks if the chromosome names in VCF file follows the same style as GRCh38.
 
 3. It checks if the input VCF and FASTA files are compatible with each other.
-
 For this, it tests if the reference sequences in FASTA and VCF match with each other for 100 random positions.
 
 
