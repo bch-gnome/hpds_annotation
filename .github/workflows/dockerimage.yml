@@ -20,3 +20,7 @@ jobs:
       run: docker build . --file Dockerfile --tag ikarus97/hpds_annotation:$(date +%Y%m%d)
     - name: Push the Docker image
       run: docker push ikarus97/hpds_annotation:$(date +%Y%m%d)
+    - name: Build the Docker image with latest tag
+      run: docker build . --file Dockerfile --tag ikarus97/hpds_annotation:latest
+    - name: Push the Docker image with latest tag
+      run: docker push ikarus97/hpds_annotation:latest
