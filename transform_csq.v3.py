@@ -1,4 +1,4 @@
-import sys, pysam, hashlib, logging, random, math, re
+import os, sys, pysam, hashlib, logging, random, math, re
 from optparse import OptionParser
 
 N_TEST = 100
