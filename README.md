@@ -1,153 +1,179 @@
 ![Docker](https://github.com/bch-gnome/hpds_annotation/workflows/Docker%20Image%20CI/badge.svg)
+This repository contains scripts and outlines steps for preparing genomic data in VCF format to be loaded into [HPDS](https://github.com/hms-dbmi/pic-sure-hpds-copdgene).
 
-This repository describes steps to prepare and annotate VCF files for loading into HPDS as in https://github.com/hms-dbmi/pic-sure-hpds-copdgene.
+# Recommended Steps for Preparing VCF Files
+The VCF preparation for HPDS consists of three steps: (1) variant normalization, (2) variant annotation, and (3) post-processing of annotations.
 
-# Recommended steps
+## Note: Splitting VCF files by chromosome
+Depending on available resources and the scale of the input VCF file(s), you can split the file by chromosome to speed up processing or reduce resource requirements. `bcftools` can be used to split VCF file by chromosomes: `bcftools view -O z -o [output VCF] [input VCF]`. It can be done in parallel using `xargs` as follows:
 
-## 1. Pre-process VCF
+```
+xargs --max-procs [# of threads] --arg-file chromosome_list -i bcftools view -O z -o [prefix].{}.vcf.gz [input VCF]
+```
 
-The input VCF file needs to be normalized for variant representaiton: to split multi-allelic variants into separate lines in VCF.
-There are various ways to do this, but one of the way is to use bcftools (http://samtools.github.io/bcftools/).
+The `chromosome_list` file contains all chromosome names, with each name on a separate line. An example of this file is available in the repository.
 
-`bcftools norm -m -any -f [fasta file for referenge genome] [input VCF file] | bgzip -c > [normalized VCF file]`
+Also, it can be done at any stage before or after steps 1–3, or integrated with step 1 as shown below:
 
-Also make the normalized VCF file tabix-indexed to accelerate the next step: annotation by VEP.
+```
+xargs --max-procs [# of threads] --arg-file chromosome_list -i bcftools norm -m -any -f [FASTA] -O z -o [prefix].{}.vcf.gz [input VCF]
+```
 
-`tabix -p vcf [normalized VCF file]`
+## 1. Variant normalization
 
-(tabix is part of htslib. http://www.htslib.org/download/)
+The Input VCF file needs normalization for variant representation: to split multi-allelic variants into separate lines. While there are various methods to do this, here's an example using [bcftools](http://samtools.github.io/bcftools):
 
-Note on variant normalization with bcftools:
+```
+bcftools norm -m -any -f [reference genome FASTA file] [input VCF] | bgzip -c > [normalized VCF]
+```
 
-Bcftools 1.16 had an issue where some FORMAT fields are not handled properly - leaving empty for the field -  when it's missing for some of samples (no problem when all samples have values or none has value).
-The empty field will later be translated as '0' by the post-processing script (the basic behavior of *pysam* library).
-The issue is fixed in the latest github repository. So, to avoid unnecessary confusion, it is recommended to use bcftools built from source.
-You can check if your VCF file suffers from this issue by comparing input (after step 1,2) and output (after step 3) for post-processing. For example, after step 3,
+It is recommended to build a tabix index for the output file: `tabix -p vcf [normalized VCF]`.
 
-`zcat [input] | grep -v '^#' | cut -f 10- | md5sum`
+## 2. Variant annotation using [VEP](https://www.ensembl.org/vep) (Variant Effect Predictor)
 
-`zcat [output] | grep -v '^#' | cut -f 10- | md5sum`
+Requirements for this step:
+- VEP Docker image (ensemblorg/ensembl-vep) or local installation.
+  - Could be used with Singularity or similar.
 
-If the two checkums are different, there are FORMAT fields affected by bcftools' issue whose value was set as '0' during post-processing.
+- VEP cache files from [Ensembl FTP](https://ftp.ensembl.org/pub) (we recommend using the indexed cache, [url](https://ftp.ensembl.org/pub/current_variation/indexed_vep_cache/) for the latest version): **release 102 or later, GRCh38, merged for both RefSeq and Ensembl**.
 
-## 2. Annotating VCF using [VEP](https://www.ensembl.org/vep) (variant effect predictor)
+- GRCh38 reference genome FASTA file, preferably from Ensembl FTP.
+  - For the command below, we assume the file is in the root directory of the VEP cache files.
 
-For annotating VCF with VEP, we need:
-- VEP docker image (ensemblorg/ensembl-vep) or local installation
-- VEP cache files from Ensembl [FTP](ftp://ftp.ensembl.org/pub/current_variation/indexed_vep_cache): **release 102 or later, GRCh38, merged for RefSeq and Ensembl.** ("homo_sapiens_merged_vep_NNN_GRCh38.tar.gz")
-- GRCh38 reference fasta file from Ensembl [FTP](ftp://ftp.ensembl.org/pub/current_fasta/homo_sapiens/dna_index).
-- gnomAD genomes release v3 ([link](https://gnomad.broadinstitute.org/downloads#v3-variants)). Variant files are split by chromosome, needs to be merged into single file (e.g., `bcftools concat`).
+- gnomAD release v3 (genomes) or v4 (joint frequency).
+  - These files are divided by chromosome and need merging into a single file (e.g., `bcftools concat`).
 
-Recommended VEP command:
+Recommended VEP command (using Docker):
 
 ```
 docker run --rm -it -v [local VEP cache directory]:/cache \
 	-v [local gnomAD directory]:/gnomAD \
-	-v [directory for input VCF file]:/work ensemblorg/ensembl-vep /opt/vep/vep \
-	--cache --offline --merged \
-	--species homo_sapiens \
-	--compress_output bgzip \
-	--input_file /work/[input VCF path/filename] \
-	--output_file /work/[annotated VCF path/filename] \
-	--no_stats \
-	--force_overwrite \
-	--assembly GRCh38 \
-	--dir_cache /cache/ \
-	--fasta /cache/[to reference genome fasta file] \
-	--everything \
-	--total_length \
-	--allele_number \
-	--hgvsg \
-	--shift_hgvs 1 \
-	--transcript_version \
-	--canonical \
-	--vcf \
-	--custom /gnomAD/[to gnomAD genomes as single file],GNOMAD_G,vcf,exact,0,AF \\
+	-v [input VCF directory]:/work \
+	ensemblorg/ensembl-vep /opt/vep/vep \
+	--cache --offline --compress_output bgzip --dir_cache /cache/ \
+	--species homo_sapiens --merged --assembly GRCh38 \
+	--input_file /work/[input VCF] \
+	--output_file /work/[output VCF] \
+	--fasta /cache/[to reference genome FASTA file] \
+	--no_stats --force_overwrite --everything --vcf \
+	--total_length --allele_number --hgvsg --transcript_version --canonical --shift_hgvs 1 \
+	--custom /gnomAD/[gnomAD file as a single file],GNOMAD_G,vcf,exact,0,AF \
 	--flag_pick
 ```
 
-The `--custom` option line makes "AF" values from gnomAD genomes file added to the matching variant as "GNOMAD_G_AF" value.
-For more detail, refer to Ensembl VEP documentation: https://ensembl.org/info/docs/tools/vep/script/vep_download.html#installer.
+Note:
+- The arguments `GNOMAD_G` and `AF` used with `--custom` will be relevant in the next step.
 
+- For gnomAD release v4 files with joint frequency, use `AF_joint` as the last argument of the `--custom` option. The full option would be: `--custom /gnomAD/[gnomAD file],GNOMAD_G,vcf,exact,0,AF_joint`.
 
-## 3. Post-processing annotated VEP for loading into HPDS
+- The `--flag_pick` option will impact in the next step.
 
-The python script "transform_csq.v3.py" removes complex and bulky VEP annotation from VCF file and leaves only the following informations, reformatted for loading into HPDS.
+## 3. Post-processing of VEP annotations
+
+The Python script `transform_csq.v3.py` in this repository simplifies VCF files by removing complex VEP annotations. It preserves only essential information (detailed in the table below), reformatting it for HPDS loading.
 
 | VEP field | Output tag | Values |
 | --------- | ---------- | ------ |
-| SYMBOL | Gene_with_variant | Official gene symbol for the variant |
-| IMPACT | Variant_severity | The severity for the calculated consequence of the variant. Possible values: `HIGH`,`MODERATE`,`LOW`, or empty (for `MODIFIER`).  |
-| Consequence | Variant_consequence_calculated | Stardardized description for the calculated consequence of the variant. |
-| VARIANT_CLASS | Variant_class | Type of variant. Possible values: `SNV`,`deletion`,`insertion`. |
-| GNOMAD_G_AF | Variant_frequency_in_gnomAD | Variant allele frequency from gnomAD genomes. |
-| GNOMAD_G_AF | Variant_frequency_as_text | Discretized variant allele frequency from gnomAD genomes. Possble values: `Novel`, `Rare` (less than 1%), `Common` (1% or greater) |
+| SYMBOL | Gene_with_variant | The official gene symbol associated with the variant |
+| IMPACT | Variant_severity | The severity of the variant's calculated consequence. Possible values: `HIGH`, `MODERATE`, `LOW`, or empty (for `MODIFIER`). |
+| Consequence | Variant_consequence_calculated | A standardized description of the variant's calculated consequence. |
+| VARIANT_CLASS | Variant_class | Varaint type. Possible values: `SNV`, `deletion`, or `insertion`. |
+| GNOMAD_G_AF | Variant_frequency_in_gnomAD | Variant allele frequency from gnomAD. |
+| GNOMAD_G_AF | Variant_frequency_as_text | Discretized variant allele frequency from gnomAD. Possible values: `Novel` (not found in gnomAD), `Rare` (less than 1% frequency), or `Common` (1% frequency or greater). |
 
-The VEP annotation field in VCF can vary by exact options used in VEP annotation.
-The script automatically detect VEP annotation format from the header line in the VCF file, if it follows the standard format: "##INFO=<ID=CSQ... Format: ...>."
+The VEP annotation field in VCF files can vary depending on the specific options used during VEP annotation. The script automatically detects the VEP annotation format from the VCF header, but only if it follows the standard format: `##INFO=<ID=CSQ... Format: ...>`.
 
-The script also performs a few simple checks to ensure the given VCF is compatible with GRCh38.
-
-1. It checks if the provided FASTA file is compatible with GRCh38: follows the same chromosome name style (chr1, chr2, ...), have the same length, and have the same md5 checksum value for sequences.
-It only checks for autosomes (chr1 ~ chr22) and sex chromosomes (chrX and chrY).
-
-2. It checks if the chromosome names in VCF file follows the same style as GRCh38.
-
-3. It checks if the input VCF and FASTA files are compatible with each other.
-For this, it tests if the reference sequences in FASTA and VCF match with each other for 100 random positions.
-
-
-`python3 transform_csq.v3.py -R [reference FASTA path/filename] [options] [VEP annotated VCF path/filename] [new filename] --vep-gnomad-af GNOMAD_G_AF`
-
-or use docker image.
+### Using the Python script
 
 ```
-docker run --rm -it -v [directory for input VCF file]:/work -v [directory for reference FASTA file]:/ref  ikarus97/hpds_annotation:latest \
-	python3 /transform_csq.v3.py -R /ref/[reference FASTA path/filename] [options] /work/[input VCF path/filename] /work/[output VCF path/filename] --vep-gnomad-af GNOMAD_G_AF
+python3 transform_csq.v3.py -R [reference genome FASTA file] --vep-gnomad-af GNOMAD_G_AF [other options] [VEP annotated VCF] [new filename]
 ```
 
-The volume option for `/ref` can be omitted if the reference FASTA file is in the same directory as input VCF or in sub-directories. The path in `-R` option should be modified appropriately.
+The argument for `--vep-gnomad-af` in the Python script should match the gnomAD file arguments used with VEP's `--custom` option. For example, if VEP was run with `--custom [gnomAD file],GG,vcf,exact,0,AF`, you should use `--vep-gnomad-af GG_AF` in the Python script to correctly retrieve gnomAD allele frequency values.
 
-If gnomAD genomes were used with different name from `GNOMAD_G` (case sensitive), then you need to provide the correct field name with opton `--vep-gnomad-af`.
-For example, if VEP was run with `--custom /[gnomad file],GG,vcf,exact,0,AF`, then the correct field name for gnomAD allele frequencies would be `GG_AF`, thus we'll need `--vep-gnomad-af GG_AF`.
+The Python script also performs several checks to ensure the input VCF file is compatible with GRCh38:
+1. It checks if the provided FASTA file is compatible with GRCh38 by checking the chromosome naming style (chr1, chr2, etc.), chromosome lengths, and MD5 checksums for sequence data. This check covers autosomes (chr1 ~ chr22) and sex chromosomes (chrX and chrY) only.
 
-Docker image for the main script `transform_csq.v3.py` is available from [Docker Hub](https://hub.docker.com/r/ikarus97/hpds_annotation).
+2. It checks if the chromosome names in the input VCF file follow the GRCh38 style (chr1, chr2, etc.).
 
-Image with the tag `latest` contains the most up-to-date version.
+3. It checks the compatibility between the input VCF and FASTA files. For this, it compares the reference sequence bases in VCF and FASTA files at 100 random positions.
 
-Previous versions are archived with the creation dates as tags.
+The script also excludes variants on chromosomes other than autosomes or sex chromosomes from the output.
 
-### Options
+### Note: Handling non-coding variants
+
+Non-coding variants (specifically, variants with `MODIFIER` as `IMPACT` by VEP) are often of less interest. As of 2024-08-22, the script offers three modes (`--mode`) for handling these variants:
+1. `all`: Processes all variants regardless of their impact. This is the default mode.
+
+2. `cds_only`: Outputs only variants whose `IMPACT` is not `MODIFIER`.
+
+3. `cds_rsid`: Similar to `cds_only`, but also includes `MODIFIER` variants if their `ID` column in the VCF is not empty.
+   - This assumes RSIDs from [dbSNP](https://www.ncbi.nlm.nih.gov/snp/) are annotated in the VCF's `ID` column. You can add these annotations using bcftools: `bcftools annotate -x ID -c +ID -a [dbSNP file] [input VCF]`.
+
+### Note: bcftools versions
+
+bcftools 1.16 had an issue where some FORMAT fields were improperly handled - left empty - when missing for certain samples. This problem didn't occur if all samples had values or if none had values. The Python script later translated these empty fields as '0' (the default behavior of the pysam library used in the script). This issue was resolved in version 1.17 and later.
+
+To check if your VCF is affected by this issue, you can compare VCFs before and after running the Python script as follows:
+
+```
+zcat [VCF before script] | grep -v '^#' | cut -f 10- | md5sum
+zcat [VCF after script] | grep -v '^#' | cut -f 10- | md5sum
+```
+
+If the two checksums differ, it indicates that FORMAT fields were affected by the issue.
+
+### Python script options
 
 `-R <path to FASTA file>`
 
-*Required*. The path to the GRCh38 reference FASTA file. The accompanying index file (.fai) should be in the same place.
+*Required*. Specifies the path to the GRCh38 reference FASTA file. The corresponding index file (.fai) should be located in the same directory.
 
 `--pick`
 
-If present, use only the most severe consequences from VEP annotation (flagged as 'PICK', by VEP option `--flag_pick`)
+If specified, this option uses only the most severe consequences from VEP annotations (marked as 'PICK'). It requires the VEP option `--flag-pick` to be used during annotation.
 
 `--cds`
 
-If present, use only the variants in coding sequence (CDS). 
-Specifically, this option will keep only variants whose rate of variant impact by VEP (https://ensembl.org/info/genome/variation/prediction/predicted_data.html) is not "MODIFIER."
+If specified, this option outputs only variants in coding sequences (CDS) (variants whose impact is not `MODIFIER`). It **cannot** be used with `--mode` all or `--mode cds_rsid`. In future releases, this option will be retired because it is the same as `--mode cds_only`.
 
 `--vep-gnomad-af <string>`
 
-Specify which field in VEP annotation will be extracted for gnomAD allele frequency. Use this if custom file (e.g., gnomAD genomes file) is used for gnomAD allele frequency.
-Default value: `gnomAD_AF`
+Specify the field in VEP annotations to be used as the variant allele frequency from gnomAD. This option requires the VEP `--custom` option with gnomAD release files. The default value is `gnomAD_AF`.
 
-For example, if you want to use gnomAD genome allele frequency from the following VEP argument:
+For example, if you used the following option in VEP:
 
-`--custom /path/to/custom/file.vcf.gz,CUSTOM_TAG,vcf,exact,0,My_Field`
+`--custom /path/to/gnomAD/file.vcf.gz,CUSTOM_TAG,vcf,exact,0,My_field`
 
-then, add `--vep-gnomad-af CUSTOM_TAG_My_Field` to options to use the value of "My_Field" as gnomAD allele frequency.
+you should add `--vep-gnomad-af CUSTOM_TAG_My_field` (case sensitive) to use the value of "My_field" as the gnomAD variant allele frequency.
 
-`--allow-modifier`
+`--mode`
 
-If present, output "Variant_severity" for variants that are "MODIFIER". As of 2021-04-23, by default, such variants do not have "Variant_severity" in the INFO column to reduce overhead in HPDS.
+Specifies which variants to include in the output file. Options are: `all` (includes all variants), `cds_rsid` (coding variants and those with RSIDs), or `cds_only` (only coding variants). The default is `all`.
+
+1. `all`: Processes all variants regardless of their impact. This is the default mode.
+
+2. `cds_only`: Outputs only variants whose `IMPACT` is not `MODIFIER`.
+
+3. `cds_rsid`: Similar to `cds_only`, but also includes `MODIFIER` variants if their `ID` column in the VCF file is not empty.
+
+`--allow-modifier-tag`
+
+Previously named as `--allow-modifier`. If specified, this option outputs the `Variant_severity` value even for `MODIFIER` variants. Note that this option **does not** determine whether such variants are included in the output file. As of 2021-04-23, by default, `MODIFIER` variants lack a `Variant_severity` value in the `INFO` column.
+
 
 # Change Log
+
+## 2024-08-22
+Summary: added `--mode` option to manage `MODIFIER` variants. Updated script to eliminate redundant output lines and exclude variants outside autosomes or sex chromosomes. Renamed options for clarity.
+
+### Added
+- Added a `--mode` option to control the handling of `MODIFIER` variants in the output file. For the `cds_rsid` mode, RSIDs for dbSNP variants must be annotated in the `ID` column of the VCF.
+
+### Changed
+- When printing different consequences for the same variant, the script checks for redundancy based on (Symbol, Consequence) pair. This check is performed line by line. As a result, some redundancy may still exist if there were redundant lines in the original VCF.
+- The option `--allow-modifier` has been renamed to `--allow-modifier-tag` for clarity.
+- Regardless of the `--mode` setting, variants outside of autosomes and sex chromosomes will not be written to the output.
 
 ## 2022-12-06
 Summary: major re-writing of code using python3 and pysam library. Also added a few basic check-up routines to ensure the compatibility with GRCh38.

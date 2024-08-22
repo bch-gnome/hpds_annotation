@@ -159,8 +159,13 @@ def check_vcf_with_FASTA(infile_vcf, infile_fasta):
 	## random select 1 million base intervals (until it counts N_TEST
 	n_test = 0
 	b38_names = list(b38.keys())
+	input_names = list(input_vcf.header.contigs)
+	input_names.sort()
+
+	test_names = [chrom for chrom in b38_names if chrom in input_names]
+
 	while n_test < N_TEST:
-		test_chr = random.choice(b38_names)
+		test_chr = random.choice(test_names)
 		test_start = random.randint(0, math.floor(b38[test_chr]['len']/1000000))*1000000
 		test_end = test_start + 1000000
 		logger.info(" - Checking random variants in %s:%s-%s" % (test_chr, test_start, test_end))
@@ -235,15 +240,22 @@ def update_info(infile, outfile, options):
 
 	output_vcf = pysam.VariantFile(outfile, "w", header = out_header)
 
+	## TODO: check if the current line is structural variants.
 	## main loop for all variant records in the input VCF
 	for rec in input_vcf:
 		## skip the line without any VEP annotation (happens with strange ALT values such as '*')
 		if not VEP_TAG in list(rec.info):
 			continue
 
+		## ignore lines with variants not on 24 chromosomes (1-22, X, Y)
+		if not rec.chrom in list(b38.keys()):
+			continue
+
 		csqL = list(rec.info[VEP_TAG])
 
 		## loop through multiple annotations (for different transcripts)
+		output_recH = {}
+
 		for csq in csqL:
 			new_rec = rec.copy()
 			new_rec.info.clear()
@@ -251,6 +263,12 @@ def update_info(infile, outfile, options):
 
 			if options.cds_only and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER':
 				continue
+
+			if options.output_mode == 'cds_only' and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER':
+				continue
+			if options.output_mode == 'cds_rsid' and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER' and rec.id == None:
+				continue
+
 			if options.pick_only and csq_valL[ csq_headerL.index('PICK') ] == '':
 				continue
 
@@ -280,16 +298,26 @@ def update_info(infile, outfile, options):
 					
 				## If the value is still not empty, add it into INFO field for new record.
 				if csq_val != '.' and csq_val != '':
-					## But if the field is 'Variant_severity' and the value is 'MODIFIER', don't add it unless modifier is allowed by --allow-modifier.
+					## But if the field is 'Variant_severity' and the value is 'MODIFIER', don't add it unless modifier is allowed by --allow-modifier-tag.
 					if key == 'Variant_severity' and csq_val == 'MODIFIER' and not options.allow_modifier:
 						continue
 					new_rec.info[key] = csq_val
+			#for key in out_columnH:
 
 			## make the new record fit for new header
 			new_rec.translate(out_header)
-			## output the record to file
-			output_vcf.write(new_rec)
+
+			## add the record for output
+			if "Gene_with_variant" in new_rec.info.keys():
+				output_recH[ (new_rec.info['Gene_with_variant'], new_rec.info['Variant_consequence_calculated']) ] = new_rec.copy()
+			else:
+				output_recH[ (None, new_rec.info['Variant_consequence_calculated']) ] = new_rec.copy()
+
 		#for csq
+		
+		## output only unique lines to file
+		for key in output_recH:
+			output_vcf.write( output_recH[key] )
 	#for rec in input_vcf
 	output_vcf.close()
 
@@ -304,9 +332,10 @@ if __name__ == '__main__':
 	parser = OptionParser(usage)
 	parser.add_option("-R", action="store", type="string", dest="ref_fasta", help="(required) FASTA file for the reference genome version as used in VCF. Needs .fai index.")
 	parser.add_option("--pick", action="store_true", dest="pick_only", help="If asserted, picks the most severe consequence only (marked by VEP). [default: %default]")
-	parser.add_option("--cds", action="store_true", dest="cds_only", help="If asserted, keeps variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'. [default: %default]")
+	parser.add_option("--cds", action="store_true", dest="cds_only", help="If asserted, keeps variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'. [default: %default]") # needs retire
 	parser.add_option("--vep-gnomad-af", action="store", type="string", dest="vep_gnomad_af", default="gnomAD_AF", help="VEP field name to be used for 'Variant_frequency_in_gnomAD' and 'Variant_frequency_as_text'. [default: %default]")
-	parser.add_option("--allow-modifier", action="store_true", dest="allow_modifier", help="If asserted, writes 'Variant_severity' INFO column for variants with 'MODIFIER' as 'VARIANT_IMPACT' by VEP (mostly intronic or intergenic variants). Not recommended. [default: %default]")
+	parser.add_option("--mode", action="store", dest="output_mode", type="choice", choices = ("cds_only", "cds_rsid", "all"), help="Set this option to control the type of variants in the output. Acceptable values: cds_only, cds_rsid, all. cds_only: outputs variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'. Equivalent as setting --cds. cds_rsid: the same as 'cds_only' but also outputs 'MODIFIER' variants if they have rsid on ID column. all: outputs everything. [default: %default]")
+	parser.add_option("--allow-modifier-tag", action="store_true", dest="allow_modifier", help="If asserted, outputs 'Variant_severity' INFO column for variants with 'MODIFIER' as 'VARIANT_IMPACT' by VEP (mostly intronic or intergenic variants). Note: this option does not control whether to output the variants or not. This is about whether to output its impact (MODIFIER) or not. Not recommended. [default: %default]")
 	
 	(options, args) = parser.parse_args()
 
@@ -314,6 +343,7 @@ if __name__ == '__main__':
 	if len(args) < 2:
 		parser.error("Need input & output file names!")
 		sys.exit(1)
+
 	if options.ref_fasta == None:
 		parser.error("Reference FASTA file (-R) is required!")
 		sys.exit(1)
@@ -324,6 +354,10 @@ if __name__ == '__main__':
 
 	if not os.path.exists("%s.tbi" % args[0]):
 		parser.error("Needs index file (.tbi) for the input VCF!")
+		sys.exit(1)
+
+	if options.cds_only and options.output_mode and options.output_mode != 'cds_only':
+		parser.error(f"Options --cds and --mode {options.output_mode} can't be used at the same time!")
 		sys.exit(1)
 
 	if options.vep_gnomad_af:
