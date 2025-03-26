@@ -8,7 +8,7 @@ The VCF preparation for HPDS consists of three steps: (1) variant normalization,
 Depending on available resources and the scale of the input VCF file(s), you can split the file by chromosome to speed up processing or reduce resource requirements. `bcftools` can be used to split VCF file by chromosomes: `bcftools view -O z -o [output VCF] [input VCF]`. It can be done in parallel using `xargs` as follows:
 
 ```
-xargs --max-procs [# of threads] --arg-file chromosome_list -i bcftools view -O z -o [prefix].{}.vcf.gz [input VCF]
+xargs --max-procs [# of threads] --arg-file chromosome_list -i bcftools view -O z -o [prefix].{}.vcf.gz [input VCF] {}
 ```
 
 The `chromosome_list` file contains all chromosome names, with each name on a separate line. An example of this file is available in the repository.
