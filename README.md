@@ -123,6 +123,15 @@ zcat [VCF after script] | grep -v '^#' | cut -f 10- | md5sum
 
 If the two checksums differ, it indicates that FORMAT fields were affected by the issue.
 
+### Note: Recommended GIC Use Options
+
+For the [GIC](https://www.genomicinformationcommons.org) project, it's preferred to use the following options to ensure data consistencies across all participating institutions:
+
+* `--vep-gnomad-af gnomADg_AF`
+* `--mode cds_rsid`
+
+Please don't use the `--pick` option.  As of March 2025, the [PIC-SURE HPDS](https://github.com/hms-dbmi/pic-sure-hpds) genomic import process can now handle variants with multiple consequences and genes.  This makes the `--pick` option no longer necessary for GIC portal purposes.
+
 ### Python script options
 
 `-R <path to FASTA file>`
