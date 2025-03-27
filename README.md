@@ -94,11 +94,6 @@ The argument for `--vep-gnomad-af` in the Python script should match the gnomAD 
 The Python script also performs several checks to ensure the input VCF file is compatible with GRCh38:
 1. It checks if the provided FASTA file is compatible with GRCh38 by checking the chromosome naming style (chr1, chr2, etc.), chromosome lengths, and MD5 checksums for sequence data. This check covers autosomes (chr1 ~ chr22) and sex chromosomes (chrX and chrY) only.
 
-There is also a docker image to run the script.
-```
-docker run ikarus97/hpds_annotation:latest python /transform_csq.v3.py -h
-```
-
 2. It checks if the chromosome names in the input VCF file follow the GRCh38 style (chr1, chr2, etc.).
 
 3. It checks the compatibility between the input VCF and FASTA files. For this, it compares the reference sequence bases in VCF and FASTA files at 100 random positions.
@@ -162,6 +157,13 @@ Specifies which variants to include in the output file. Options are: `all` (incl
 
 Previously named as `--allow-modifier`. If specified, this option outputs the `Variant_severity` value even for `MODIFIER` variants. Note that this option **does not** determine whether such variants are included in the output file. As of 2021-04-23, by default, `MODIFIER` variants lack a `Variant_severity` value in the `INFO` column.
 
+### Using Docker for the script
+
+There is also a docker image to run the script.
+
+```
+docker run ikarus97/hpds_annotation:latest python /transform_csq.v3.py -h
+```
 
 # Change Log
 
