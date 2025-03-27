@@ -261,9 +261,6 @@ def update_info(infile, outfile, options):
 			new_rec.info.clear()
 			csq_valL = csq.split('|')
 
-			if options.cds_only and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER':
-				continue
-
 			if options.output_mode == 'cds_only' and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER':
 				continue
 			if options.output_mode == 'cds_rsid' and csq_valL[ csq_headerL.index('IMPACT') ] == 'MODIFIER' and rec.id == None:
@@ -332,9 +329,8 @@ if __name__ == '__main__':
 	parser = OptionParser(usage)
 	parser.add_option("-R", action="store", type="string", dest="ref_fasta", help="(required) FASTA file for the reference genome version as used in VCF. Needs .fai index.")
 	parser.add_option("--pick", action="store_true", dest="pick_only", help="If asserted, picks the most severe consequence only (marked by VEP). [default: %default]")
-	parser.add_option("--cds", action="store_true", dest="cds_only", help="If asserted, keeps variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'. [default: %default]") # needs retire
 	parser.add_option("--vep-gnomad-af", action="store", type="string", dest="vep_gnomad_af", default="gnomAD_AF", help="VEP field name to be used for 'Variant_frequency_in_gnomAD' and 'Variant_frequency_as_text'. [default: %default]")
-	parser.add_option("--mode", action="store", dest="output_mode", type="choice", choices = ("cds_only", "cds_rsid", "all"), help="Set this option to control the type of variants in the output. Acceptable values: cds_only, cds_rsid, all. cds_only: outputs variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'. Equivalent as setting --cds. cds_rsid: the same as 'cds_only' but also outputs 'MODIFIER' variants if they have rsid on ID column. all: outputs everything. [default: %default]")
+	parser.add_option("--mode", action="store", dest="output_mode", type="choice", choices = ("cds_only", "cds_rsid", "all"), default="all", help="Set this option to control the type of variants in the output. Acceptable values: cds_only, cds_rsid, all. cds_only: outputs variants in coding region (CDS) only, i.e., VEP IMPACT is not 'MODIFIER'. Equivalent as setting --cds. cds_rsid: the same as 'cds_only' but also outputs 'MODIFIER' variants if they have rsid on ID column. all: outputs everything. [default: %default]")
 	parser.add_option("--allow-modifier-tag", action="store_true", dest="allow_modifier", help="If asserted, outputs 'Variant_severity' INFO column for variants with 'MODIFIER' as 'VARIANT_IMPACT' by VEP (mostly intronic or intergenic variants). Note: this option does not control whether to output the variants or not. This is about whether to output its impact (MODIFIER) or not. Not recommended. [default: %default]")
 	
 	(options, args) = parser.parse_args()
@@ -354,10 +350,6 @@ if __name__ == '__main__':
 
 	if not os.path.exists("%s.tbi" % args[0]):
 		parser.error("Needs index file (.tbi) for the input VCF!")
-		sys.exit(1)
-
-	if options.cds_only and options.output_mode and options.output_mode != 'cds_only':
-		parser.error(f"Options --cds and --mode {options.output_mode} can't be used at the same time!")
 		sys.exit(1)
 
 	if options.vep_gnomad_af:

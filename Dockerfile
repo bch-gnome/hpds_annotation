@@ -1,7 +1,11 @@
-FROM ubuntu:22.04
+FROM python:3
 
-RUN apt-get update && apt-get install -y bcftools python3-minimal python3-pip
+WORKDIR /usr/src/app
 
-RUN pip install pysam
+COPY requirements.txt ./
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY transform_csq.v3.py /
+
+CMD [ "python", "/transform_csq.v3.py" ]

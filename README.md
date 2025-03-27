@@ -164,6 +164,12 @@ Previously named as `--allow-modifier`. If specified, this option outputs the `V
 
 # Change Log
 
+## 2025-03-27
+Summary: retired the obsolete `--cds` option. Use `--mode cds_only` instead.
+
+### Removed
+- Removed the `--cds` option, which became obsolete by `--mode`. Using `--mode cds_only` will have the same effect (outputting only coding variants).
+
 ## 2024-08-22
 Summary: added `--mode` option to manage `MODIFIER` variants. Updated script to eliminate redundant output lines and exclude variants outside autosomes or sex chromosomes. Renamed options for clarity.
 
